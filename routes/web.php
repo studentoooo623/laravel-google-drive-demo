@@ -1,5 +1,10 @@
 <?php
 
+use Carbon\Carbon;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -30,18 +35,21 @@ Route::get('put-existing', function() {
 });
 
 Route::get('list', function() {
+    // $dir = '1IotdW9nQ_qpAHApgCXA1bS6t-EJbpIUF';
     $dir = '/';
+    // $dir = '1tF1SkyjWeU9ntKzVANEMSn6o3X8DFnYI';
+    // $dir = '0AOKPy-Y1ZWZ2Uk9PVA';
     $recursive = false; // Get subdirectories also?
     $contents = collect(Storage::cloud()->listContents($dir, $recursive));
-
-    //return $contents->where('type', '=', 'dir'); // directories
+    // dd($contents);
+    // return $contents->where('type', '=', 'dir'); // directories
     return $contents->where('type', '=', 'file'); // files
 });
 
 Route::get('list-folder-contents', function() {
     // The human readable folder name to get the contents of...
     // For simplicity, this folder is assumed to exist in the root directory.
-    $folder = 'Test Dir';
+    $folder = 'Untitled folder';
 
     // Get root directory contents...
     $contents = collect(Storage::cloud()->listContents('/', false));
@@ -70,13 +78,23 @@ Route::get('list-folder-contents', function() {
     });
 });
 
+
+Route::get('list-team-drives', function () {
+    $service = Storage::cloud()->getAdapter()->getService();
+    $teamDrives = collect($service->teamdrives->listTeamdrives()->getTeamDrives());
+
+    return $teamDrives->mapWithKeys(function($drive) {
+        return [$drive->id => $drive->name];
+    });
+});
+
+
 Route::get('get', function() {
-    $filename = 'test.txt';
+    $filename = 'Copy of Death Note - 01 (GamePersia).mkv';
 
     $dir = '/';
     $recursive = false; // Get subdirectories also?
     $contents = collect(Storage::cloud()->listContents($dir, $recursive));
-
     $file = $contents
         ->where('type', '=', 'file')
         ->where('filename', '=', pathinfo($filename, PATHINFO_FILENAME))
@@ -84,12 +102,13 @@ Route::get('get', function() {
         ->first(); // there can be duplicate file names!
 
     //return $file; // array with file info
+    // dd($file);
 
     $rawData = Storage::cloud()->get($file['path']);
 
     return response($rawData, 200)
         ->header('ContentType', $file['mimetype'])
-        ->header('Content-Disposition', "attachment; filename='$filename'");
+        ->header('Content-Disposition', "attachment; filename=$filename");
 });
 
 Route::get('put-get-stream', function() {
@@ -102,11 +121,11 @@ Route::get('put-get-stream', function() {
     // https://murze.be/2015/07/upload-large-files-to-s3-using-laravel-5/
 
     // Assume this is a large file...
-    $filename = 'laravel.png';
+    $filename = 'Copy of Halo.S01E01.720p.AMZN.WEBRip.x264-GalaxyTV.mkv';
     $filePath = public_path($filename);
 
     // Upload using a stream...
-    Storage::cloud()->put($filename, fopen($filePath, 'r+'));
+    // Storage::cloud()->put($filename, fopen($filePath, 'r+'));
 
     // Get file listing...
     $dir = '/';
@@ -121,21 +140,29 @@ Route::get('put-get-stream', function() {
         ->first(); // there can be duplicate file names!
 
     //return $file; // array with file info
+    // dd($file);
 
     // Store the file locally...
-    //$readStream = Storage::cloud()->getDriver()->readStream($file['path']);
-    //$targetFile = storage_path("downloaded-{$filename}");
-    //file_put_contents($targetFile, stream_get_contents($readStream), FILE_APPEND);
+    // $readStream = Storage::cloud()->getDriver()->readStream($file['path']);
+    // $targetFile = storage_path("downloaded-{$filename}");
+    // file_put_contents($targetFile, stream_get_contents($readStream), FILE_APPEND);
 
     // Stream the file to the browser...
     $readStream = Storage::cloud()->getDriver()->readStream($file['path']);
-
+    // dd($readStream);
     return response()->stream(function () use ($readStream) {
+        // $readStream = fopen($readStream, 'r+');
         fpassthru($readStream);
     }, 200, [
-        'Content-Type' => $file['mimetype'],
-        //'Content-disposition' => 'attachment; filename="'.$filename.'"', // force download?
+        // 'Content-Type' => $file['mimetype'],
+        'Content-disposition' => 'attachment; filename="'.$filename.'"', // force download?
     ]);
+    // dd( response()->stream(function () use ($readStream) {
+    //     fpassthru($readStream);
+    // }, 200, [
+    //     'Content-Type' => $file['mimetype'],
+    //     'Content-disposition' => 'attachment; filename="'.$filename.'"', // force download?
+    // ]));
 });
 
 Route::get('create-dir', function() {
